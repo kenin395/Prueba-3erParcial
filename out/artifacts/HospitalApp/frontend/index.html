@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Gestión de Pacientes - Hospital</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <style>
+        body { background: #f2f6fc; }
+        .card { border-radius: 12px; }
+        .table th { background: #0d6efd; color: white; }
+        .active { color: green; font-weight: bold; }
+        .inactive { color: red; font-weight: bold; }
+        .btn-danger { color: white; }
+    </style>
+</head>
+<body class="p-4">
+
+<div id="app" class="container">
+
+    <h1 class="text-center mb-4">🏥 Gestión de Pacientes</h1>
+
+    <div v-if="mensajeError" class="alert alert-danger text-center">
+        {{ mensajeError }}
+    </div>
+
+    <!-- FORMULARIO -->
+    <div class="card p-4 shadow-sm mb-4">
+        <h4 class="mb-3">Registrar Paciente</h4>
+
+        <div class="row g-3">
+            <div class="col-md-6">
+                <input v-model="form.nombre" class="form-control" placeholder="Nombre">
+            </div>
+            <div class="col-md-6">
+                <input v-model="form.correo" class="form-control" placeholder="Correo">
+            </div>
+            <div class="col-md-4">
+                <input v-model="form.edad" type="number" class="form-control" placeholder="Edad">
+            </div>
+            <div class="col-md-4">
+                <input v-model="form.direccion" class="form-control" placeholder="Dirección">
+            </div>
+            <div class="col-md-4">
+                <input v-model="form.cedula" class="form-control" placeholder="Cédula ecuatoriana">
+            </div>
+        </div>
+
+        <button class="btn btn-primary mt-3 w-100" @click="crearPaciente">
+            Registrar Paciente
+        </button>
+    </div>
+
+    <!-- TABLA -->
+    <div class="card p-4 shadow-sm">
+        <h4>Listado de Pacientes</h4>
+
+        <table class="table table-striped table-hover mt-3">
+            <thead>
+            <tr>
+                <th>ID</th>
+                <th>Nombre</th>
+                <th>Correo</th>
+                <th>Edad</th>
+                <th>Cédula</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+            </tr>
+            </thead>
+
+            <tbody>
+            <tr v-for="p in pacientes" :key="p.id">
+                <td>{{ p.id }}</td>
+                <td>{{ p.nombre }}</td>
+                <td>{{ p.correo }}</td>
+                <td>{{ p.edad }}</td>
+                <td>{{ p.cedula }}</td>
+
+                <td>
+                    <span v-if="p.activo" class="active">Activo</span>
+                    <span v-else class="inactive">Inactivo</span>
+                </td>
+
+                <td>
+                    <button class="btn btn-warning btn-sm me-2" @click="cambiarEstado(p.id, !p.activo)">Estado</button>
+                    <button class="btn btn-secondary btn-sm me-2" @click="abrirEditar(p)">Editar</button>
+                    <button class="btn btn-danger btn-sm" @click="eliminarPaciente(p.id)">Eliminar</button>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- MODAL EDITAR -->
+    <div class="modal fade" id="modalEditar" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+
+                <div class="modal-header">
+                    <h5 class="modal-title">Editar Paciente</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+
+                <div class="modal-body">
+                    <input v-model="edit.nombre" class="form-control mb-2" placeholder="Nombre">
+                    <input v-model="edit.correo" class="form-control mb-2" placeholder="Correo">
+                    <input v-model="edit.edad" type="number" class="form-control mb-2" placeholder="Edad">
+                    <input v-model="edit.direccion" class="form-control mb-2" placeholder="Dirección">
+                    <input v-model="edit.cedula" class="form-control mb-2" placeholder="Cédula">
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button class="btn btn-primary" @click="actualizarPaciente">Guardar Cambios</button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    const { createApp } = Vue;
+
+    createApp({
+        data() {
+            return {
+                pacientes: [],
+                mensajeError: "",
+                modalEditar: null,
+                form: { nombre: "", correo: "", edad: "", direccion: "", cedula: "" },
+                edit: {}
+            };
+        },
+
+        methods: {
+
+            // VALIDAR CÉDULA ECUATORIANA
+            esCedulaValida(cedula) {
+                if (!cedula || !cedula.match(/^\d{10}$/)) return false;
+
+                let provincia = parseInt(cedula.substring(0, 2));
+                if (provincia < 1 || provincia > 24) return false;
+
+                let tercerDigito = parseInt(cedula.charAt(2));
+                if (tercerDigito >= 6) return false;
+
+                let coef = [2, 1, 2, 1, 2, 1, 2, 1, 2];
+                let suma = 0;
+
+                for (let i = 0; i < 9; i++) {
+                    let valor = parseInt(cedula.charAt(i)) * coef[i];
+                    if (valor >= 10) valor -= 9;
+                    suma += valor;
+                }
+
+                let digitoVerificador = parseInt(cedula.charAt(9));
+                let decenaSuperior = Math.ceil(suma / 10) * 10;
+                let resultado = decenaSuperior - suma;
+                if (resultado === 10) resultado = 0;
+
+                return resultado === digitoVerificador;
+            },
+
+            // GET - LISTAR
+            async listar() {
+                const res = await fetch("http://localhost:8080/HospitalApp/api/pacientes");
+                this.pacientes = await res.json();
+            },
+
+            // POST - CREAR
+            async crearPaciente() {
+                this.mensajeError = "";
+
+                if (!this.form.nombre || !this.form.correo || !this.form.edad ||
+                    !this.form.direccion || !this.form.cedula) {
+
+                    this.mensajeError = "Todos los campos son obligatorios.";
+                    return;
+                }
+
+                if (!this.esCedulaValida(this.form.cedula)) {
+                    this.mensajeError = "La cédula ecuatoriana ingresada es inválida.";
+                    return;
+                }
+
+                this.form.edad = Number(this.form.edad);
+
+                const res = await fetch("http://localhost:8080/HospitalApp/api/pacientes", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(this.form)
+                });
+
+                if (!res.ok) {
+                    this.mensajeError = "Error al registrar paciente.";
+                    return;
+                }
+
+                this.form = { nombre: "", correo: "", edad: "", direccion: "", cedula: "" };
+                this.listar();
+            },
+
+            // Abrir modal
+            abrirEditar(p) {
+                this.edit = { ...p };
+                this.modalEditar.show();
+            },
+
+            // POST - EDITAR
+            async actualizarPaciente() {
+                await fetch("http://localhost:8080/HospitalApp/api/pacientes/editar", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(this.edit)
+                });
+
+                this.modalEditar.hide();
+                this.listar();
+            },
+
+            // POST - CAMBIAR ESTADO
+            async cambiarEstado(id, activo) {
+                await fetch("http://localhost:8080/HospitalApp/api/pacientes/estado", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ id, activo })
+                });
+
+                this.listar();
+            },
+
+            // DELETE - ELIMINAR PACIENTE
+            async eliminarPaciente(id) {
+                if (!confirm("¿Seguro que deseas eliminar este paciente?")) return;
+
+                const res = await fetch(`http://localhost:8080/HospitalApp/api/pacientes/${id}`, {
+                    method: "DELETE"
+                });
+
+                if (!res.ok) {
+                    alert("Error al eliminar el paciente.");
+                    return;
+                }
+
+                this.listar();
+            }
+
+        },
+
+        mounted() {
+            this.modalEditar = new bootstrap.Modal(document.getElementById("modalEditar"));
+            this.listar();
+        }
+
+    }).mount("#app");
+</script>
+
+</body>
+</html>
